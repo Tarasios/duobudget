@@ -304,4 +304,305 @@ class HouseholdActions {
       ),
     ]);
   }
+
+  // ---- Configuration & governance (settings / setup / quests / chest) -----
+
+  /// Appends a single [event], stamping nothing — callers build the whole event.
+  Future<void> append(Event event) => db.eventsDao.appendEvents([event]);
+
+  /// Sets a user's income for [month] (last-writer-wins in the reducer).
+  Future<void> setIncome({
+    required String forUserId,
+    required Month month,
+    required int amountCents,
+  }) async {
+    final now = DateTime.now().toUtc();
+    await append(IncomeSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      forUserId: forUserId,
+      amountCents: amountCents,
+      month: month,
+    ));
+  }
+
+  /// Creates or amends a recurring expense. Reuse [expenseId] to edit; pass
+  /// [endMonth] to schedule a cancellation.
+  Future<String> setRecurringExpense({
+    String? expenseId,
+    required String name,
+    required PartyOwnership ownership,
+    required RecurringKind kind,
+    required int amountCents,
+    required Month startMonth,
+    Month? endMonth,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = expenseId ?? uuidv7();
+    await append(RecurringExpenseSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      expenseId: id,
+      name: name,
+      ownership: ownership,
+      kind: kind,
+      amountCents: amountCents,
+      startMonth: startMonth,
+      endMonth: endMonth,
+    ));
+    return id;
+  }
+
+  /// Creates or amends a budget slice (last-writer-wins by [sliceId]).
+  Future<String> setSlice({
+    String? sliceId,
+    required String name,
+    required SliceOwnership ownership,
+    required int limitCents,
+    required int poolTithePct,
+    required LeftoverDestination defaultLeftoverPolicy,
+    required bool taxDeductibleByDefault,
+    EmergencyContribution? emergencyContribution,
+    String? petId,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = sliceId ?? uuidv7();
+    await append(BudgetSliceSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      sliceId: id,
+      name: name,
+      ownership: ownership,
+      limitCents: limitCents,
+      poolTithePct: poolTithePct,
+      defaultLeftoverPolicy: defaultLeftoverPolicy,
+      taxDeductibleByDefault: taxDeductibleByDefault,
+      emergencyContribution: emergencyContribution,
+      petId: petId,
+    ));
+    return id;
+  }
+
+  /// Creates or renames an emergency fund (last-writer-wins by [fundId]).
+  Future<String> setEmergencyFund({
+    String? fundId,
+    required String name,
+    String? petId,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = fundId ?? uuidv7();
+    await append(EmergencyFundSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      fundId: id,
+      name: name,
+      petId: petId,
+    ));
+    return id;
+  }
+
+  /// Creates or renames a pet party member (last-writer-wins by [petId]).
+  Future<String> setPet({
+    String? petId,
+    required String name,
+    String? customSpriteSha256,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = petId ?? uuidv7();
+    await append(PetSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      petId: id,
+      name: name,
+      customSpriteSha256: customSpriteSha256,
+    ));
+    return id;
+  }
+
+  /// Creates or amends a savings-goal quest (last-writer-wins by [questId]).
+  Future<String> setQuest({
+    String? questId,
+    required String name,
+    required int targetCents,
+    required PartyOwnership ownership,
+    String? sliceHint,
+    String? customSpriteSha256,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = questId ?? uuidv7();
+    await append(QuestSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      questId: id,
+      name: name,
+      targetCents: targetCents,
+      ownership: ownership,
+      sliceHint: sliceHint,
+      customSpriteSha256: customSpriteSha256,
+    ));
+    return id;
+  }
+
+  /// Abandons a quest, returning its balance to funders (post dissolution tithe).
+  Future<void> abandonQuest(String questId) async {
+    final now = DateTime.now().toUtc();
+    await append(QuestAbandoned(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      questId: questId,
+    ));
+  }
+
+  /// Records a gift into a user's vault (untithed).
+  Future<void> recordGift({
+    required String forUserId,
+    required int amountCents,
+    String? note,
+  }) async {
+    final now = DateTime.now().toUtc();
+    await append(GiftReceived(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      forUserId: forUserId,
+      amountCents: amountCents,
+      note: note,
+    ));
+  }
+
+  /// Moves discretionary money from a user's vault into the war chest.
+  Future<void> contributeToPool({
+    required String fromUserId,
+    required int amountCents,
+  }) async {
+    final now = DateTime.now().toUtc();
+    await append(PoolContributionMade(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      fromUserId: fromUserId,
+      amountCents: amountCents,
+    ));
+  }
+
+  /// Proposes a war-chest withdrawal (pending the other user's signature).
+  Future<String> proposeWithdrawal({
+    required int amountCents,
+    required String purpose,
+    required WithdrawalDestination destination,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = uuidv7();
+    await append(PoolWithdrawalProposed(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      proposalId: id,
+      byUserId: meUserId,
+      amountCents: amountCents,
+      purpose: purpose,
+      destination: destination,
+    ));
+    return id;
+  }
+
+  /// Records a tax refund into the war chest.
+  Future<void> recordTaxRefund({required int amountCents, String? note}) async {
+    final now = DateTime.now().toUtc();
+    await append(TaxRefundRecorded(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      amountCents: amountCents,
+      note: note,
+    ));
+  }
+
+  /// Sets the war chest's savings target.
+  Future<void> setGoal(int targetCents) async {
+    final now = DateTime.now().toUtc();
+    await append(GoalSet(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      targetCents: targetCents,
+    ));
+  }
+
+  /// Records a net-worth account balance (latest value wins).
+  Future<String> recordAccountBalance({
+    String? accountId,
+    required String accountName,
+    required AccountKind kind,
+    required int balanceCents,
+    DateTime? occurredAt,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final id = accountId ?? uuidv7();
+    await append(AccountBalanceRecorded(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: occurredAt ?? now,
+      createdAt: now,
+      accountId: id,
+      accountName: accountName,
+      kind: kind,
+      balanceCents: balanceCents,
+    ));
+    return id;
+  }
+
+  /// Changes a household setting. Known keys: `spoilsGraceDays`,
+  /// `dissolutionTithePct`, `showNetWorth`.
+  Future<void> changeSetting(String key, Object? value) async {
+    final now = DateTime.now().toUtc();
+    await append(SettingChanged(
+      eventId: uuidv7(),
+      deviceId: deviceId,
+      userId: meUserId,
+      occurredAt: now,
+      createdAt: now,
+      key: key,
+      value: value,
+    ));
+  }
+
+  /// Ingests a custom sprite PNG into the blob store, returning its sha256 for
+  /// reference from a [PetSet] / [QuestSet]. Throws [SpriteRejected] if invalid.
+  Future<String> ingestSpriteBytes(Uint8List pngBytes) async {
+    final ingested = await ingestSprite(pngBytes, blobs);
+    return ingested.sha256;
+  }
 }

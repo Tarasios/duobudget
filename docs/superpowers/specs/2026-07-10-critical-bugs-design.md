@@ -12,12 +12,11 @@ Root-cause-first, one branch. The Android sqlite foundation is fixed before anyt
 
 **Symptom:** Sync from the phone fails with "invalid arguments" from `sqlite3_initialize` (and cascading errors). Observed on Android 17.
 
-**Diagnosis:** `app/pubspec.yaml` contains a comment admitting the gap: Android native-lib provisioning (`sqlite3_flutter_libs`) was deferred "until the data layer lands" and never added. Android ships no usable bundled sqlite3, so drift cannot open the database on the phone at all.
+**Diagnosis:** The project uses package:sqlite3's native-assets build hook with `hooks.user_defines.sqlite3.source: system` in `app/pubspec.yaml`, which resolves to `dlopen('libsqlite3.so')` at runtime. Desktop OSes ship an app-loadable sqlite3; Android does not — the platform's libsqlite3.so has been private to the OS since Android 7, so the dlopen/symbol lookup fails and every database call errors (`sqlite3_initialize` invalid arguments). The old pubspec comment deferring "sqlite3_flutter_libs" is a red herring: that package belongs to the pre-native-assets pipeline and is not the fix here.
 
 **Fix:**
-- Add `sqlite3_flutter_libs` (current release, which ships 16 KB-page-aligned `.so` files required on Android 15+).
-- Verify Gradle/NDK configuration is compatible (ABI filters, page-size alignment).
-- Confirm drift's `NativeDatabase` setup follows the drift-recommended Android bootstrap (temp directory workaround where applicable).
+- Change the user-define to the package default `source: sqlite3`, which downloads a hash-verified precompiled sqlite3 per target at build time (16 KB-page-aligned on Android) and bundles it with the app. This applies uniformly to all platforms (user-defines cannot vary per OS), which also gives every device the same sqlite version.
+- Update the pubspec comment to explain why `system` is not usable on Android.
 
 **Acceptance:** A fresh install on the Android 17 device completes onboarding, writes events, and completes a pair + pull cycle against a Windows hub.
 

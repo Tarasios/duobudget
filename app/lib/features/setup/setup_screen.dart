@@ -41,7 +41,12 @@ const _stepTitles = <_Step, String>{
 };
 
 class SetupScreen extends ConsumerStatefulWidget {
-  const SetupScreen({super.key});
+  const SetupScreen({super.key, this.debugJumpToSummary = false});
+
+  /// Test-only: start at the summary step so the finish path is reachable
+  /// without driving every wizard form.
+  @visibleForTesting
+  final bool debugJumpToSummary;
 
   @override
   ConsumerState<SetupScreen> createState() => _SetupScreenState();
@@ -51,11 +56,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _c = SetupController();
   int _index = -1; // -1 == the welcome/join gate
   bool _busy = false;
+  String? _finishError;
 
   @override
   void initState() {
     super.initState();
     _c.addListener(_onChange);
+    if (widget.debugJumpToSummary) _index = _Step.summary.index;
   }
 
   @override
@@ -130,25 +137,38 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final isSummary = _step == _Step.summary;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _busy ? null : _back,
-              child: const Text('Back'),
+          if (_finishError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Text(
+                _finishError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            flex: 2,
-            child: FilledButton(
-              onPressed: !_canAdvance || _busy
-                  ? null
-                  : isSummary
-                      ? _finish
-                      : _next,
-              child: Text(isSummary ? 'Begin the adventure' : 'Next'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _busy ? null : _back,
+                  child: const Text('Back'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                flex: 2,
+                child: FilledButton(
+                  onPressed: !_canAdvance || _busy
+                      ? null
+                      : isSummary
+                          ? _finish
+                          : _next,
+                  child: Text(isSummary ? 'Begin the adventure' : 'Next'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -209,7 +229,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   Future<void> _finish() async {
     if (_busy) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _finishError = null;
+    });
     try {
       final input = _c.buildInput();
       final db = ref.read(appDatabaseProvider);
@@ -224,6 +247,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       // Saving the local setup flips isSetUpProvider and the router hands off
       // to the main shell.
       await db.localSetupDao.save(plan.localSetup);
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _finishError = 'Could not save your setup: $e');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

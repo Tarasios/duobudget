@@ -36,6 +36,7 @@ class DraftMember {
     required this.name,
     this.descriptionText,
     this.spriteSha256,
+    this.fundedByUserId,
   });
 
   final String localId;
@@ -45,6 +46,10 @@ class DraftMember {
   /// The invited free-text character description that feeds text-mode adventure.
   final String? descriptionText;
   final String? spriteSha256;
+
+  /// For a pet: the adult (localId) whose budget funds this pet's categories;
+  /// null means the group funds them (the common case).
+  final String? fundedByUserId;
 
   bool get isAdult => role == DraftRole.adult;
 }
@@ -112,6 +117,7 @@ class DraftCategory {
     this.ownerLocalId,
     this.mainCategoryId,
     this.petId,
+    this.petOwnerIds = const [],
     this.tithePct = 0,
   });
 
@@ -126,6 +132,11 @@ class DraftCategory {
   /// A pet member this category is displayed under (its micro-budget), if any.
   final String? petId;
 
+  /// The pet members that own this category (a shared pet budget). Group
+  /// categories only; each pet's equal share is planned against its funding
+  /// source.
+  final List<String> petOwnerIds;
+
   /// Pool tithe % (0–100) applied when leftover converts to discretionary.
   final int tithePct;
 
@@ -136,6 +147,7 @@ class DraftCategory {
         ownerLocalId: ownerLocalId,
         mainCategoryId: mainCategoryId,
         petId: petId,
+        petOwnerIds: petOwnerIds,
         tithePct: tithePct,
       );
 }
@@ -271,6 +283,7 @@ OnboardingPlan buildOnboardingEvents(
           role: _roleOf(m.role),
           descriptionText: m.descriptionText,
           customSpriteSha256: m.spriteSha256,
+          fundedByUserId: m.role == DraftRole.pet ? m.fundedByUserId : null,
         )));
   }
 
@@ -405,6 +418,7 @@ OnboardingPlan buildOnboardingEvents(
           defaultLeftoverPolicy: const CarryInSlice(),
           taxDeductibleByDefault: false,
           petId: c.petId,
+          petOwnerIds: c.petOwnerIds,
         )));
   }
 

@@ -335,16 +335,20 @@ class _PartyStep extends StatelessWidget {
 
   Future<void> _editMember(BuildContext context, DraftRole role,
       {DraftMember? existing}) async {
-    final result = await showMemberEditor(context, ref, role: role, existing: existing);
+    final result = await showMemberEditor(context, ref,
+        role: role, existing: existing, adults: c.adults);
     if (result == null) return;
     if (existing == null) {
       c.addMember(role, result.name,
-          descriptionText: result.description, spriteSha256: result.sprite);
+          descriptionText: result.description,
+          spriteSha256: result.sprite,
+          fundedByUserId: result.fundedBy);
     } else {
       c.updateMember(existing.localId,
           name: result.name,
           descriptionText: result.description,
-          spriteSha256: result.sprite);
+          spriteSha256: result.sprite,
+          fundedByUserId: result.fundedBy);
     }
   }
 }
@@ -387,12 +391,13 @@ class _MemberTile extends StatelessWidget {
             icon: const Icon(Icons.edit_outlined),
             onPressed: () async {
               final result = await showMemberEditor(context, ref,
-                  role: member.role, existing: member);
+                  role: member.role, existing: member, adults: c.adults);
               if (result != null) {
                 c.updateMember(member.localId,
                     name: result.name,
                     descriptionText: result.description,
-                    spriteSha256: result.sprite);
+                    spriteSha256: result.sprite,
+                    fundedByUserId: result.fundedBy);
               }
             },
           ),
@@ -1018,10 +1023,14 @@ class _MoneyFieldState extends State<_MoneyField> {
 // ---------------------------------------------------------------------------
 
 class MemberDraftResult {
-  const MemberDraftResult({required this.name, this.description, this.sprite});
+  const MemberDraftResult(
+      {required this.name, this.description, this.sprite, this.fundedBy});
   final String name;
   final String? description;
   final String? sprite;
+
+  /// Pet only: the adult localId funding this pet's budgets (null = group).
+  final String? fundedBy;
 }
 
 Future<MemberDraftResult?> showMemberEditor(
@@ -1029,10 +1038,12 @@ Future<MemberDraftResult?> showMemberEditor(
   WidgetRef ref, {
   required DraftRole role,
   DraftMember? existing,
+  List<DraftMember> adults = const [],
 }) {
   final nameCtrl = TextEditingController(text: existing?.name ?? '');
   final descCtrl = TextEditingController(text: existing?.descriptionText ?? '');
   String? sprite = existing?.spriteSha256;
+  String? fundedBy = existing?.fundedByUserId;
 
   return showModalBottomSheet<MemberDraftResult>(
     context: context,
@@ -1093,6 +1104,26 @@ Future<MemberDraftResult?> showMemberEditor(
                   ],
                 ),
               ),
+              if (role == DraftRole.pet && adults.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  initialValue: fundedBy,
+                  decoration: const InputDecoration(
+                    labelText: 'Whose budget funds this pet?',
+                    helperText:
+                        'The group splits pet costs by shares unless one '
+                        'adult takes them on.',
+                    helperMaxLines: 2,
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                        value: null, child: Text('The group')),
+                    for (final a in adults)
+                      DropdownMenuItem(value: a.localId, child: Text(a.name)),
+                  ],
+                  onChanged: (v) => setSheet(() => fundedBy = v),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               FilledButton(
                 onPressed: () {
@@ -1103,6 +1134,7 @@ Future<MemberDraftResult?> showMemberEditor(
                     name: name,
                     description: desc.isEmpty ? null : desc,
                     sprite: sprite,
+                    fundedBy: fundedBy,
                   ));
                 },
                 child: const Text('Save'),
@@ -1413,7 +1445,7 @@ Future<DraftCategory?> showCategoryEditor(
       text: existing == null ? '' : Money(existing.limitCents).format());
   final titheCtrl = TextEditingController(text: '${existing?.tithePct ?? 0}');
   String mainCat = existing?.mainCategoryId ?? c.mainCategories.first.id;
-  String? petId = existing?.petId;
+  final petOwners = <String>{...?existing?.petOwnerIds};
 
   int centsOf() {
     final t = limitCtrl.text.trim();
@@ -1486,17 +1518,28 @@ Future<DraftCategory?> showCategoryEditor(
                 ),
               ],
               if (group && c.pets.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                DropdownButtonFormField<String?>(
-                  initialValue: petId,
-                  decoration: const InputDecoration(
-                      labelText: 'Link to a pet (optional)'),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('None')),
+                const SizedBox(height: AppSpacing.md),
+                Text('Belongs to pets (optional)',
+                    style: Theme.of(sheetCtx).textTheme.labelLarge),
+                Text(
+                  'Pick every pet this budget covers — they share it '
+                  'equally, each paid from that pet\'s funding source.',
+                  style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  children: [
                     for (final p in c.pets)
-                      DropdownMenuItem(value: p.localId, child: Text(p.name)),
+                      FilterChip(
+                        label: Text(p.name),
+                        selected: petOwners.contains(p.localId),
+                        onSelected: (on) => setSheet(() => on
+                            ? petOwners.add(p.localId)
+                            : petOwners.remove(p.localId)),
+                      ),
                   ],
-                  onChanged: (v) => setSheet(() => petId = v),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -1510,7 +1553,8 @@ Future<DraftCategory?> showCategoryEditor(
                     group: group,
                     ownerLocalId: group ? null : ownerLocalId,
                     mainCategoryId: mainCat,
-                    petId: group ? petId : null,
+                    petOwnerIds:
+                        group ? List.unmodifiable(petOwners) : const [],
                     tithePct: (int.tryParse(titheCtrl.text.trim()) ?? 0)
                         .clamp(0, 100),
                   ));

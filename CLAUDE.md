@@ -1,6 +1,6 @@
 # LootLog
 
-A pixel-art dungeon-crawler that happens to be a rigorous shared budgeting app. The game is the product: budgeting is presented as a party of adventurers (the household — adults, dependents, pets) delving a dungeon where budget categories are monsters, savings goals are quest bosses, and month close is a battle ritual. Underneath sits a local-first, event-sourced, integer-cents ledger that the game layer can read but never alter. Flutter only: Android + desktop (Windows/macOS/Linux). No external services, servers, accounts, or SaaS — desktops act as sync hubs on the local network and OCR runs on-device. (LootLog was renamed from DuoBudget — the repository, Dart package name, and on-disk identifiers keep the old name for continuity; households are any size.)
+A pixel-art dungeon-crawler that happens to be a rigorous shared budgeting app. The game is the product: budgeting is presented as a party of adventurers (the household — adults, dependents, pets) delving a dungeon where budget categories are monsters, savings goals are quest bosses, and month close is a battle ritual. Underneath sits a local-first, event-sourced, integer-cents ledger that the game layer can read but never alter. Flutter only: Android + desktop (Windows/macOS/Linux). No external services, servers, accounts, or SaaS — desktops act as sync hubs on the local network and OCR runs on-device. (LootLog was renamed from DuoBudget before first release, and the repository, package, and storage names all follow; households are any size.)
 
 ## Product priorities (in order)
 

@@ -138,6 +138,29 @@ void main() {
       ]);
       expect(refs, {sha});
     });
+
+    test('sprite hashes nested in structured cosmetics are referenced', () {
+      // The homestead stage ladder stores per-stage art as
+      // {spriteSha256: ...} entries inside a list value.
+      final sha1 = 'b' * 64;
+      final sha2 = 'c' * 64;
+      final refs = BlobStore.referencedBlobs([
+        CosmeticSet(
+          eventId: 'c2',
+          deviceId: 'dev',
+          userId: 'u1',
+          occurredAt: _at(1),
+          createdAt: _at(1),
+          key: 'homestead.stages',
+          value: [
+            {'name': 'Empty lot', 'thresholdCents': 0},
+            {'name': 'Keep', 'thresholdCents': 5000, 'spriteSha256': sha1},
+            {'name': 'Castle', 'thresholdCents': 9000, 'spriteSha256': sha2},
+          ],
+        ),
+      ]);
+      expect(refs, {sha1, sha2});
+    });
   });
 
   group('deletion never touches referenced blobs', () {
